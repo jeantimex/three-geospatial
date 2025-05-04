@@ -18,7 +18,6 @@ import {
   Atmosphere,
   Sky,
   SkyLight,
-  Stars,
   SunLight,
   type AtmosphereApi
 } from '@takram/three-atmosphere/r3f'
@@ -118,7 +117,6 @@ const Scene: FC = () => {
           {sky && <SkyLight />}
         </group>
       )}
-      <Stars data='atmosphere/stars.bin' />
       <EastNorthUpFrame {...geodetic}>
         <TorusKnot
           args={[200, 60, 256, 64]}
