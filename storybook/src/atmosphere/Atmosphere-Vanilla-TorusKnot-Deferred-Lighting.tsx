@@ -10,7 +10,6 @@ import {
 } from 'postprocessing'
 import { useLayoutEffect } from 'react'
 import {
-  Clock,
   Group,
   HalfFloatType,
   Mesh,
@@ -22,6 +21,7 @@ import {
   Scene,
   TorusKnotGeometry,
   Vector3,
+  Matrix4,
   WebGLRenderer
 } from 'three'
 import { OrbitControls } from 'three-stdlib'
@@ -29,8 +29,9 @@ import invariant from 'tiny-invariant'
 
 import {
   AerialPerspectiveEffect,
-  getMoonDirectionECEF,
-  getSunDirectionECEF,
+  getMoonDirectionECI,
+  getSunDirectionECI,
+  getECIToECEFRotationMatrix,
   PrecomputedTexturesLoader,
   SkyMaterial,
   type PrecomputedTextures
@@ -44,7 +45,6 @@ import {
 let renderer: WebGLRenderer
 let camera: PerspectiveCamera
 let controls: OrbitControls
-let clock: Clock
 let scene: Scene
 let skyMaterial: SkyMaterial
 let aerialPerspective: AerialPerspectiveEffect
@@ -52,9 +52,10 @@ let composer: EffectComposer
 
 const sunDirection = new Vector3()
 const moonDirection = new Vector3()
+const rotationMatrix = new Matrix4()
 
 // A midnight sun in summer.
-const referenceDate = new Date('2000-06-01T10:00:00Z')
+const referenceDate = new Date('2025-05-04T12:00:00Z')
 const geodetic = new Geodetic(0, radians(67), 1000)
 const position = geodetic.toECEF()
 const up = Ellipsoid.WGS84.getSurfaceNormal(position)
@@ -73,7 +74,6 @@ function init(): void {
   controls.minDistance = 1e3
   controls.target.copy(position)
 
-  clock = new Clock()
   scene = new Scene()
 
   // SkyMaterial disables projection. Provide a plane that covers clip space.
@@ -105,17 +105,17 @@ function init(): void {
   // SunDirectionalLight, and provide a normal buffer to
   // AerialPerspectiveEffect.
   aerialPerspective = new AerialPerspectiveEffect(camera, {
-    correctGeometricError: true,
     correctAltitude: true,
+    correctGeometricError: true,
     inscatter: true,
+    irradianceScale: 2 / Math.PI,
+    moon: true,
     photometric: true,
+    sky: true,
     skyIrradiance: true,
+    sun: true,
     sunIrradiance: true,
     transmittance: true,
-    irradianceScale: 2 / Math.PI,
-    sky: true,
-    sun: true,
-    moon: true
   })
 
   renderer = new WebGLRenderer({
@@ -141,10 +141,12 @@ function init(): void {
   composer.addPass(new EffectPass(camera, aerialPerspective))
   composer.addPass(new EffectPass(camera, new LensFlareEffect()))
   composer.addPass(
-    new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }))
+    new EffectPass(camera,
+      new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
+      new SMAAEffect(),
+      new DitheringEffect()
+    )
   )
-  composer.addPass(new EffectPass(camera, new SMAAEffect()))
-  composer.addPass(new EffectPass(camera, new DitheringEffect()))
 
   // Load precomputed textures.
   new PrecomputedTexturesLoader()
@@ -169,14 +171,16 @@ function onWindowResize(): void {
 }
 
 function render(): void {
-  const date = +referenceDate
-  getSunDirectionECEF(date, sunDirection)
-  getMoonDirectionECEF(date, moonDirection)
+  const date = referenceDate;
+  getECIToECEFRotationMatrix(date, rotationMatrix);
+  getSunDirectionECI(date, sunDirection).applyMatrix4(rotationMatrix);
+  getMoonDirectionECI(date, moonDirection).applyMatrix4(rotationMatrix);
 
   skyMaterial.sunDirection.copy(sunDirection)
   skyMaterial.moonDirection.copy(moonDirection)
 
   aerialPerspective.sunDirection.copy(sunDirection)
+  aerialPerspective.moonDirection.copy(moonDirection)
 
   controls.update()
   composer.render()
