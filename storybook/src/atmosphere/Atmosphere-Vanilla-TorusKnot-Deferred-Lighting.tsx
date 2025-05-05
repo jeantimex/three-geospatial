@@ -54,8 +54,7 @@ const sunDirection = new Vector3()
 const moonDirection = new Vector3()
 const rotationMatrix = new Matrix4()
 
-// A midnight sun in summer.
-const referenceDate = new Date('2025-05-04T12:00:00Z')
+const referenceDate = new Date('2025-05-04T12:00:00+05:00')
 const geodetic = new Geodetic(0, radians(67), 1000)
 const position = geodetic.toECEF()
 const up = Ellipsoid.WGS84.getSurfaceNormal(position)
